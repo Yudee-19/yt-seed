@@ -93,7 +93,6 @@ services:
 # ============================================
 databases:
   - name: yt-seed-redis
-    databaseName: yt-seed-redis
     plan: starter # Free tier (25MB). Upgrade if needed
     region: oregon
     ipAllowList: [] # Empty = allow all (change for production security)
