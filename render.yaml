@@ -95,5 +95,4 @@ databases:
   - name: yt-seed-redis
     region: oregon
     plan: free # Free tier Redis plan
-    maxmemoryPolicy: noeviction # Keep all data, don't evict
     ipAllowList: [] # Empty = allow all (change for production security)
