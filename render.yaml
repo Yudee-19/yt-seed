@@ -88,11 +88,12 @@ services:
       - key: VIDEOS_PER_CANDIDATE
         value: "3"
 
-# ============================================
-# 3. Managed Redis Instance
-# ============================================
-databases:
-  - name: yt-seed-redis
+  # ============================================
+  # 3. Redis Service
+  # ============================================
+  - type: redis
+    name: yt-seed-redis
     region: oregon
-    plan: free # Free tier Redis plan
+    plan: free # Free tier (25MB)
+    maxmemoryPolicy: noeviction
     ipAllowList: [] # Empty = allow all (change for production security)
