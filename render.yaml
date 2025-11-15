@@ -1,0 +1,99 @@
+# Render Blueprint for YT Seed Pipeline
+# This configuration deploys:
+# 1. FastAPI web service
+# 2. Celery background worker
+# 3. Managed Redis instance
+
+services:
+  # ============================================
+  # 1. FastAPI Web Service (Main Backend)
+  # ============================================
+  - type: web
+    name: yt-seed-api
+    runtime: python
+    region: oregon # Change to your preferred region
+    plan: starter # Free tier or upgrade as needed
+    branch: kajkarma_prod # Your git branch
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /progress
+    envVars:
+      # ===== API Keys (Set as secrets in Render dashboard) =====
+      - key: YOUTUBE_API_KEY
+        sync: false # Must be set manually in Render dashboard
+      - key: OPENAI_API_KEY
+        sync: false # Must be set manually in Render dashboard
+      
+      # ===== MongoDB Configuration =====
+      - key: MONGO_URI
+        sync: false # Set your MongoDB Atlas URI manually
+      - key: MONGO_DB_NAME
+        value: yt_seed_production # Or your preferred DB name
+      
+      # ===== Redis Connection (Auto-populated from Redis service below) =====
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: yt-seed-redis
+          property: connectionString
+      
+      # ===== Pipeline Limits (Minimal for testing/cost control) =====
+      - key: MAX_KEYWORDS
+        value: "3" # Only use 3 keywords per seed
+      - key: MAX_CHANNELS
+        value: "3" # Only process 3 discovered channels per seed
+      - key: MAX_RESULTS_PER_SEARCH
+        value: "5" # Limit YouTube search results per keyword
+      - key: VIDEOS_PER_CANDIDATE
+        value: "3" # Fetch only 3 videos per candidate channel
+
+  # ============================================
+  # 2. Celery Background Worker
+  # ============================================
+  - type: worker
+    name: yt-seed-celery-worker
+    runtime: python
+    region: oregon # Must match web service region
+    plan: starter
+    branch: kajkarma_prod
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A celery_worker worker --loglevel=info --concurrency=2
+    envVars:
+      # ===== API Keys (Same as web service) =====
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      
+      # ===== MongoDB Configuration =====
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB_NAME
+        value: yt_seed_production
+      
+      # ===== Redis Connection =====
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: yt-seed-redis
+          property: connectionString
+      
+      # ===== Pipeline Limits =====
+      - key: MAX_KEYWORDS
+        value: "3"
+      - key: MAX_CHANNELS
+        value: "3"
+      - key: MAX_RESULTS_PER_SEARCH
+        value: "5"
+      - key: VIDEOS_PER_CANDIDATE
+        value: "3"
+
+# ============================================
+# 3. Managed Redis Instance
+# ============================================
+databases:
+  - name: yt-seed-redis
+    databaseName: yt-seed-redis
+    plan: starter # Free tier (25MB). Upgrade if needed
+    region: oregon
+    ipAllowList: [] # Empty = allow all (change for production security)

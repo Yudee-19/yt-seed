@@ -51,6 +51,19 @@ MIN_VIDEOS = 6
 MAX_VIDEOS = 2500 # Your filter for news orgs
 VIDEOS_PER_CANDIDATE = 20 # How many videos to fetch for LLM analysis
 
+# --- Env-configurable overrides ---
+import os
+ENV_MAX_KEYWORDS = os.getenv("MAX_KEYWORDS")
+ENV_MAX_CHANNELS = os.getenv("MAX_CHANNELS")
+ENV_MAX_RESULTS_PER_SEARCH = os.getenv("MAX_RESULTS_PER_SEARCH")
+ENV_VIDEOS_PER_CANDIDATE = os.getenv("VIDEOS_PER_CANDIDATE")
+
+if ENV_VIDEOS_PER_CANDIDATE:
+    try:
+        VIDEOS_PER_CANDIDATE = int(ENV_VIDEOS_PER_CANDIDATE)
+    except Exception:
+        pass
+
 # --- Rate Limiting (Unchanged) ---
 DELAY_BETWEEN_CANDIDATES = 2 # Shorter delay, no LLM call
 DELAY_BETWEEN_SEEDS = 10
@@ -109,10 +122,14 @@ def process_seed_channel(
         # This is the "run the search" block
         print(f"   Searching YouTube with {len(seed_keywords_list)} keywords...")
         try:
+            # Respect environment overrides for max keywords and per-search results
+            max_results_per_search = int(ENV_MAX_RESULTS_PER_SEARCH) if ENV_MAX_RESULTS_PER_SEARCH else 30
+            max_keywords = int(ENV_MAX_KEYWORDS) if ENV_MAX_KEYWORDS else len(seed_keywords_list)
+
             candidate_ids = search_videos_multi_focused(
                 seed_keywords_list,
-                max_results_per_search=30,
-                max_keywords=len(seed_keywords_list),
+                max_results_per_search=max_results_per_search,
+                max_keywords=max_keywords,
                 run_tag=run_tag,
                 seed_name=seed_channel
             )
@@ -127,7 +144,17 @@ def process_seed_channel(
     if not candidate_ids:
         print("  ⚠️  No new candidates found after filtering seen log")
         return 0
-    print(f"  ✅ {len(candidate_ids)} new candidates to evaluate")
+    # Optionally cap number of candidate channels via ENV_MAX_CHANNELS
+    if ENV_MAX_CHANNELS:
+        try:
+            cap = int(ENV_MAX_CHANNELS)
+            candidate_list = list(candidate_ids)
+            candidate_ids = set(candidate_list[:cap])
+            print(f"  ✅ {len(candidate_ids)} new candidates to evaluate (capped to {cap})")
+        except Exception:
+            print(f"  ✅ {len(candidate_ids)} new candidates to evaluate")
+    else:
+        print(f"  ✅ {len(candidate_ids)} new candidates to evaluate")
 
     # --- STEP 2: Get Metadata (REFACTORED FOR MONGO) ---
     print(f"\n📊 STEP 2: Fetching channel metadata...")
